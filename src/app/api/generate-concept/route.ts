@@ -21,6 +21,15 @@ function parseDataUrl(dataUrl: string) {
   return { mimeType, base64Data };
 }
 
+function buildEditPrompt(userPrompt: string): string {
+  return [
+    "Use the uploaded image as the primary reference.",
+    "Preserve the original room layout, camera perspective, and structural elements.",
+    "Apply only realistic renovation changes requested below.",
+    userPrompt.trim(),
+  ].join("\n");
+}
+
 export async function POST(request: Request) {
   const body = (await request.json()) as GenerateConceptInput;
 
@@ -48,7 +57,7 @@ export async function POST(request: Request) {
 
     const formData = new FormData();
     formData.append("model", "gpt-image-1");
-    formData.append("prompt", body.prompt.trim());
+    formData.append("prompt", buildEditPrompt(body.prompt));
     formData.append("size", "1024x1024");
     formData.append("image", imageBlob, "room-upload.png");
 
