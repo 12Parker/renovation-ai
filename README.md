@@ -233,7 +233,8 @@ Project now includes:
 - Next.js App Router + TypeScript baseline
 - Tailwind CSS configuration and global styles
 - shadcn/ui-compatible setup (`components.json`, `cn` utility, base `Button` and `Card` components)
-- API stub route at `src/app/api/analyze-room/route.ts`
+- Milestone 1 static shell and Milestone 2 mock AI results flow
+- API mock route at `src/app/api/analyze-room/route.ts`
 - Type models under `src/lib/models`
 - Prompt builder and local storage helper modules
 
