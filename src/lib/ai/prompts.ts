@@ -23,11 +23,11 @@ type BeforeAfterPromptInput = {
 
 const BEFORE_AFTER_TEMPLATES = [
   (input: BeforeAfterPromptInput, upgrades: string) =>
-    `Transform this ${input.roomType} into a ${input.style} space focused on ${input.goals.join(", ")}, featuring ${upgrades}.`,
+    `Using the uploaded room photo as a strict reference for layout and camera angle, transform this ${input.roomType} into a ${input.style} space focused on ${input.goals.join(", ")}, featuring ${upgrades}.`,
   (input: BeforeAfterPromptInput, upgrades: string) =>
-    `Redesign this ${input.roomType} as a ${input.style} interior with improvements for ${input.goals.join(", ")}, including ${upgrades}.`,
+    `Using the uploaded room photo as a reference image, redesign this ${input.roomType} as a ${input.style} interior with improvements for ${input.goals.join(", ")}, including ${upgrades}, while keeping the same perspective.`,
   (input: BeforeAfterPromptInput, upgrades: string) =>
-    `Create a before-and-after concept for this ${input.roomType}: a ${input.style} remodel that prioritizes ${input.goals.join(", ")} with ${upgrades}.`,
+    `Create a before-and-after concept for this ${input.roomType} by editing the uploaded photo: a ${input.style} remodel that prioritizes ${input.goals.join(", ")} with ${upgrades}, preserving room geometry and major structures.`,
 ];
 
 export function buildBeforeAfterPrompt(input: BeforeAfterPromptInput, variant = 0): string {
