@@ -20,6 +20,20 @@ export type RoomAnalysis = {
   imagePrompt: string;
 };
 
+export type CostLineItem = {
+  category: "Flooring" | "Paint" | "Lighting" | "Built-ins" | "Plumbing" | "Electrical" | "Furniture" | "Labour";
+  diyCost: number;
+  contractorCost: number;
+  includedInDiyRefresh: boolean;
+  includedInFullRenovation: boolean;
+};
+
+export type CostEstimate = {
+  lineItems: CostLineItem[];
+  diyRefreshTotal: number;
+  fullRenovationTotal: number;
+};
+
 export type AnalyzeRoomInput = {
   roomType: string;
   style: string;

@@ -1,10 +1,19 @@
+import type { CostEstimate, RoomAnalysis } from "@/lib/models/room-analysis";
+
 const PROJECTS_KEY = "renovation-ai:projects";
 
 export type SavedProject = {
   id: string;
   title: string;
   createdAt: string;
+  updatedAt: string;
   notes?: string;
+  roomType: string;
+  style: string;
+  goals: string[];
+  imageDataUrl?: string;
+  analysis: RoomAnalysis;
+  costEstimate: CostEstimate;
 };
 
 export function getSavedProjects(): SavedProject[] {
@@ -18,17 +27,30 @@ export function getSavedProjects(): SavedProject[] {
   }
 
   try {
-    return JSON.parse(raw) as SavedProject[];
+    const parsed = JSON.parse(raw) as SavedProject[];
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
-export function saveProject(project: SavedProject): void {
+export function upsertSavedProject(project: SavedProject): SavedProject[] {
   if (typeof window === "undefined") {
-    return;
+    return [];
   }
 
   const existing = getSavedProjects();
-  window.localStorage.setItem(PROJECTS_KEY, JSON.stringify([project, ...existing]));
+  const deduped = [project, ...existing.filter((item) => item.id !== project.id)];
+  window.localStorage.setItem(PROJECTS_KEY, JSON.stringify(deduped));
+  return deduped;
+}
+
+export function deleteSavedProject(projectId: string): SavedProject[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  const next = getSavedProjects().filter((item) => item.id !== projectId);
+  window.localStorage.setItem(PROJECTS_KEY, JSON.stringify(next));
+  return next;
 }

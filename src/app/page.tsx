@@ -6,7 +6,7 @@ export default function HomePage() {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
         <header className="space-y-3">
           <p className="inline-flex rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
-            Milestone 1 — Static app shell
+            Milestones 6 + 7 — Saved projects & cost estimator
           </p>
           <h1 className="text-4xl font-bold tracking-tight md:text-5xl">Renovation AI</h1>
           <p className="max-w-3xl text-slate-600">
