@@ -229,6 +229,14 @@ npm install
 npm run dev
 ```
 
+### Environment Variables
+Create `.env.local` with:
+```bash
+OPENAI_API_KEY=your_api_key
+# Optional override
+OPENAI_MODEL=gpt-4o-mini
+```
+
 Project now includes:
 - Next.js App Router + TypeScript baseline
 - Tailwind CSS configuration and global styles
