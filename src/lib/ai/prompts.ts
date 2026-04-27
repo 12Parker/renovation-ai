@@ -13,3 +13,27 @@ export function buildRoomAnalysisPrompt(input: AnalyzeRoomInput): string {
     `Goals: ${input.goals.join(", ")}`,
   ].join("\n");
 }
+
+type BeforeAfterPromptInput = {
+  roomType: string;
+  style: string;
+  goals: string[];
+  highlights?: string[];
+};
+
+const BEFORE_AFTER_TEMPLATES = [
+  (input: BeforeAfterPromptInput, upgrades: string) =>
+    `Transform this ${input.roomType} into a ${input.style} space focused on ${input.goals.join(", ")}, featuring ${upgrades}.`,
+  (input: BeforeAfterPromptInput, upgrades: string) =>
+    `Redesign this ${input.roomType} as a ${input.style} interior with improvements for ${input.goals.join(", ")}, including ${upgrades}.`,
+  (input: BeforeAfterPromptInput, upgrades: string) =>
+    `Create a before-and-after concept for this ${input.roomType}: a ${input.style} remodel that prioritizes ${input.goals.join(", ")} with ${upgrades}.`,
+];
+
+export function buildBeforeAfterPrompt(input: BeforeAfterPromptInput, variant = 0): string {
+  const highlights = input.highlights?.filter(Boolean) ?? [];
+  const upgrades = highlights.length > 0 ? highlights.join(", ") : "better lighting, thoughtful storage, and cohesive finishes";
+  const selectedTemplate = BEFORE_AFTER_TEMPLATES[Math.abs(variant) % BEFORE_AFTER_TEMPLATES.length];
+
+  return selectedTemplate(input, upgrades);
+}
