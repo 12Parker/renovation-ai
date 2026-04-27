@@ -25,6 +25,8 @@ export function RenovationForm() {
   const [promptVariant, setPromptVariant] = useState(0);
   const [promptDraft, setPromptDraft] = useState("");
   const [didCopyPrompt, setDidCopyPrompt] = useState(false);
+  const [isGeneratingConcept, setIsGeneratingConcept] = useState(false);
+  const [generatedConceptImage, setGeneratedConceptImage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [projectTitle, setProjectTitle] = useState("");
   const [projectNotes, setProjectNotes] = useState("");
@@ -63,6 +65,7 @@ export function RenovationForm() {
       setAnalysis(null);
       setErrorMessage(null);
       setStatusMessage(null);
+      setGeneratedConceptImage(null);
     };
     reader.readAsDataURL(file);
   }
@@ -99,6 +102,7 @@ export function RenovationForm() {
       setPromptVariant(0);
       setPromptDraft(result.imagePrompt);
       setDidCopyPrompt(false);
+      setGeneratedConceptImage(null);
       setProjectTitle((prev) => prev || `${roomType} ${style} plan`);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unexpected error");
@@ -140,6 +144,40 @@ export function RenovationForm() {
     setTimeout(() => setDidCopyPrompt(false), 1500);
   }
 
+  async function handleGenerateConcept() {
+    if (!imageDataUrl || !promptDraft.trim()) {
+      return;
+    }
+
+    setIsGeneratingConcept(true);
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch("/api/generate-concept", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: promptDraft,
+          imageDataUrl,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Unable to generate a concept image right now.");
+      }
+
+      const result = (await response.json()) as { imageDataUrl: string };
+      setGeneratedConceptImage(result.imageDataUrl);
+      setStatusMessage("Generated a concept preview from your prompt.");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Unexpected image generation error");
+    } finally {
+      setIsGeneratingConcept(false);
+    }
+  }
+
   function handleSaveProject() {
     if (!analysis || !costEstimate) {
       return;
@@ -159,6 +197,7 @@ export function RenovationForm() {
       style,
       goals: selectedGoals,
       imageDataUrl: imageDataUrl ?? undefined,
+      generatedImageDataUrl: generatedConceptImage ?? undefined,
       analysis,
       costEstimate,
     });
@@ -179,6 +218,7 @@ export function RenovationForm() {
     setPromptVariant(0);
     setDidCopyPrompt(false);
     setErrorMessage(null);
+    setGeneratedConceptImage(project.generatedImageDataUrl ?? null);
     setStatusMessage(`Loaded "${project.title}" from saved projects.`);
   }
 
@@ -377,8 +417,32 @@ export function RenovationForm() {
                     {didCopyPrompt ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                     {didCopyPrompt ? "Copied" : "Copy prompt"}
                   </Button>
+                  <Button type="button" onClick={handleGenerateConcept} disabled={isGeneratingConcept || !imageDataUrl}>
+                    {isGeneratingConcept ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    {isGeneratingConcept ? "Generating concept..." : "Generate concept image"}
+                  </Button>
                 </div>
               </section>
+
+              {imageDataUrl && generatedConceptImage ? (
+                <section>
+                  <h3 className="font-semibold">Original vs concept preview</h3>
+                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Original</p>
+                      <div className="relative h-44 overflow-hidden rounded-md border">
+                        <Image src={imageDataUrl} alt="Original room upload" fill className="object-cover" />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Generated concept</p>
+                      <div className="relative h-44 overflow-hidden rounded-md border">
+                        <Image src={generatedConceptImage} alt="Generated renovation concept" fill className="object-cover" />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              ) : null}
 
               <section className="space-y-2 rounded-md border p-3">
                 <h3 className="font-semibold">Save project</h3>

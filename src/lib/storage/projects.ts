@@ -12,6 +12,7 @@ export type SavedProject = {
   style: string;
   goals: string[];
   imageDataUrl?: string;
+  generatedImageDataUrl?: string;
   analysis: RoomAnalysis;
   costEstimate: CostEstimate;
 };
