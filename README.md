@@ -248,3 +248,6 @@ Project now includes:
 
 ## License
 MIT
+
+## Post-Milestone Roadmap
+- See `docs/next-level-roadmap.md` for proposed next-level features, including contractor matching tied to estimate line items.
