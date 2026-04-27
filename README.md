@@ -223,11 +223,20 @@ Prompting should enforce structure and practical recommendations:
 - Prompt quality significantly impacts practical usefulness.
 - Budget transparency drives repeat engagement.
 
-## Local Development (planned)
+## Local Development (current)
 ```bash
 npm install
 npm run dev
 ```
+
+Project now includes:
+- Next.js App Router + TypeScript baseline
+- Tailwind CSS configuration and global styles
+- shadcn/ui-compatible setup (`components.json`, `cn` utility, base `Button` and `Card` components)
+- Milestone 1 static shell and Milestone 2 mock AI results flow
+- API mock route at `src/app/api/analyze-room/route.ts`
+- Type models under `src/lib/models`
+- Prompt builder and local storage helper modules
 
 ## License
 MIT
