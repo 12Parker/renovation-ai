@@ -2,10 +2,11 @@
 
 import Image from "next/image";
 import { useMemo, useState } from "react";
-import { Loader2, Upload } from "lucide-react";
+import { Check, Copy, Loader2, RefreshCw, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { buildBeforeAfterPrompt } from "@/lib/ai/prompts";
 import type { RoomAnalysis } from "@/lib/models/room-analysis";
 
 const ROOM_TYPES = ["basement", "bedroom", "kitchen", "laundry room", "office", "living room"] as const;
@@ -19,6 +20,9 @@ export function RenovationForm() {
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<RoomAnalysis | null>(null);
+  const [promptVariant, setPromptVariant] = useState(0);
+  const [promptDraft, setPromptDraft] = useState("");
+  const [didCopyPrompt, setDidCopyPrompt] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const canAnalyze = useMemo(() => Boolean(imageDataUrl) && selectedGoals.length > 0 && !isAnalyzing, [imageDataUrl, selectedGoals, isAnalyzing]);
@@ -69,12 +73,47 @@ export function RenovationForm() {
 
       const result = (await response.json()) as RoomAnalysis;
       setAnalysis(result);
+      setPromptVariant(0);
+      setPromptDraft(result.imagePrompt);
+      setDidCopyPrompt(false);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unexpected error");
       setAnalysis(null);
     } finally {
       setIsAnalyzing(false);
     }
+  }
+
+  function handleRegeneratePrompt() {
+    const nextVariant = promptVariant + 1;
+    setPromptVariant(nextVariant);
+
+    const highlights = analysis
+      ? [...analysis.materials.slice(0, 3), ...analysis.suggestions.slice(0, 2).map((item) => item.title)]
+      : [];
+
+    const generated = buildBeforeAfterPrompt(
+      {
+        roomType,
+        style,
+        goals: selectedGoals,
+        highlights,
+      },
+      nextVariant,
+    );
+
+    setPromptDraft(generated);
+    setDidCopyPrompt(false);
+  }
+
+  async function handleCopyPrompt() {
+    if (!promptDraft) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(promptDraft);
+    setDidCopyPrompt(true);
+    setTimeout(() => setDidCopyPrompt(false), 1500);
   }
 
   return (
@@ -156,12 +195,12 @@ export function RenovationForm() {
           ) : (
             <>
               <section>
-                <h3 className="font-semibold">Room summary</h3>
+                <h3 className="font-semibold">What I noticed</h3>
                 <p className="mt-1 text-sm text-muted-foreground">{analysis.roomSummary}</p>
               </section>
 
               <section>
-                <h3 className="font-semibold">Suggestions</h3>
+                <h3 className="font-semibold">Biggest wins</h3>
                 <ul className="mt-2 space-y-2 text-sm">
                   {analysis.suggestions.map((suggestion) => (
                     <li key={suggestion.title} className="rounded-md border p-3">
@@ -176,7 +215,7 @@ export function RenovationForm() {
               </section>
 
               <section>
-                <h3 className="font-semibold">Budget tiers</h3>
+                <h3 className="font-semibold">Budget options</h3>
                 <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
                   <div className="rounded-md border p-2">
                     <p className="font-medium">Low</p>
@@ -194,23 +233,42 @@ export function RenovationForm() {
               </section>
 
               <section>
-                <h3 className="font-semibold">Materials</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{analysis.materials.join(" • ")}</p>
+                <h3 className="font-semibold">DIY weekend upgrades</h3>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                  {analysis.diyTasks.map((task) => (
+                    <li key={task}>{task}</li>
+                  ))}
+                </ul>
               </section>
 
               <section>
-                <h3 className="font-semibold">DIY vs Contractor</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">DIY:</span> {analysis.diyTasks.join(", ")}
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">Contractor:</span> {analysis.contractorTasks.join(", ")}
-                </p>
+                <h3 className="font-semibold">Contractor-level upgrades</h3>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                  {analysis.contractorTasks.map((task) => (
+                    <li key={task}>{task}</li>
+                  ))}
+                </ul>
               </section>
 
               <section>
-                <h3 className="font-semibold">Generated redesign prompt</h3>
-                <p className="mt-1 rounded-md border bg-muted/30 p-3 text-sm">{analysis.imagePrompt}</p>
+                <h3 className="font-semibold">Image prompt</h3>
+                <p className="mt-1 text-sm text-muted-foreground">Use this before/after prompt with image-generation tools, then copy or regenerate options.</p>
+                <textarea
+                  className="mt-2 min-h-24 w-full rounded-md border bg-muted/30 p-3 text-sm"
+                  value={promptDraft}
+                  onChange={(event) => setPromptDraft(event.target.value)}
+                />
+                <p className="mt-2 text-xs text-muted-foreground">Suggested materials: {analysis.materials.join(" • ")}</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button type="button" variant="secondary" onClick={handleRegeneratePrompt}>
+                    <RefreshCw className="h-4 w-4" />
+                    Regenerate prompt
+                  </Button>
+                  <Button type="button" variant="outline" onClick={handleCopyPrompt}>
+                    {didCopyPrompt ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {didCopyPrompt ? "Copied" : "Copy prompt"}
+                  </Button>
+                </div>
               </section>
             </>
           )}
