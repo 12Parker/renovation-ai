@@ -146,12 +146,12 @@ export function RenovationForm() {
       <Card>
         <CardHeader>
           <CardTitle>Results panel</CardTitle>
-          <CardDescription>Milestone 2 mock AI output for your uploaded room.</CardDescription>
+          <CardDescription>Real AI analysis for your uploaded room photo.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {!analysis ? (
             <div className="rounded-lg border border-dashed p-8 text-sm text-muted-foreground">
-              Upload an image and select at least one goal to generate mock renovation output.
+              Upload an image and select at least one goal to generate renovation output.
             </div>
           ) : (
             <>

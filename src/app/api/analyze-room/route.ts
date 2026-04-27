@@ -1,55 +1,150 @@
 import { NextResponse } from "next/server";
 
-import type { RoomAnalysis } from "@/lib/models/room-analysis";
+import { buildRoomAnalysisPrompt } from "@/lib/ai/prompts";
+import { isRoomAnalysis } from "@/lib/ai/validation";
+import type { AnalyzeRoomInput, RoomAnalysis } from "@/lib/models/room-analysis";
 
-type AnalyzeRoomRequest = {
-  roomType?: string;
-  style?: string;
-  goals?: string[];
-  imageDataUrl?: string;
+type OpenAIChatCompletionResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
 };
 
-const mockResponse: RoomAnalysis = {
-  roomSummary: "Unfinished basement with limited natural light and strong potential for a cozy media zone.",
-  priorities: ["lighting", "flooring", "layout"],
-  suggestions: [
-    {
-      title: "Layered lighting",
-      why: "Replace single-point lighting with recessed LEDs and warm ambient fixtures.",
-      estimatedCost: "$1,500-$3,000",
-      difficulty: "medium",
+const RESPONSE_JSON_SCHEMA = {
+  name: "room_analysis",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["roomSummary", "priorities", "suggestions", "budget", "materials", "contractorTasks", "diyTasks", "imagePrompt"],
+    properties: {
+      roomSummary: { type: "string" },
+      priorities: {
+        type: "array",
+        items: { type: "string" },
+      },
+      suggestions: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["title", "why", "estimatedCost", "difficulty"],
+          properties: {
+            title: { type: "string" },
+            why: { type: "string" },
+            estimatedCost: { type: "string" },
+            difficulty: { type: "string", enum: ["easy", "medium", "hard"] },
+          },
+        },
+      },
+      budget: {
+        type: "object",
+        additionalProperties: false,
+        required: ["low", "medium", "high"],
+        properties: {
+          low: { type: "string" },
+          medium: { type: "string" },
+          high: { type: "string" },
+        },
+      },
+      materials: {
+        type: "array",
+        items: { type: "string" },
+      },
+      contractorTasks: {
+        type: "array",
+        items: { type: "string" },
+      },
+      diyTasks: {
+        type: "array",
+        items: { type: "string" },
+      },
+      imagePrompt: { type: "string" },
     },
-    {
-      title: "Define the seating zone",
-      why: "Anchor the room with a rug and sectional to improve flow and comfort.",
-      estimatedCost: "$1,000-$2,500",
-      difficulty: "easy",
-    },
-  ],
-  budget: {
-    low: "$2,000-$6,000",
-    medium: "$8,000-$18,000",
-    high: "$20,000-$45,000",
   },
-  materials: ["Luxury vinyl plank flooring", "Warm LED recessed lights", "Acoustic wall panels", "Moisture-resistant paint"],
-  contractorTasks: ["New recessed lighting circuit", "Inspect and update basement electrical outlets"],
-  diyTasks: ["Paint walls", "Install shelving", "Assemble seating and decor"],
-  imagePrompt:
-    "Transform this unfinished basement into a cozy modern theatre room with warm recessed lighting, luxury vinyl plank flooring, acoustic wall panels, a sectional sofa, and soft neutral colors.",
 };
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as AnalyzeRoomRequest;
+  const body = (await request.json()) as AnalyzeRoomInput;
 
   if (!body.imageDataUrl) {
     return NextResponse.json({ error: "Please upload an image before analysis." }, { status: 400 });
   }
 
-  return NextResponse.json({
-    ...mockResponse,
-    priorities: body.goals?.length ? body.goals : mockResponse.priorities,
-    roomSummary: body.roomType
-      ? `Sample ${body.roomType} analysis in ${body.style ?? "selected"} style. ${mockResponse.roomSummary}`
-      : mockResponse.roomSummary,
-  });
+  if (!body.goals?.length) {
+    return NextResponse.json({ error: "Please select at least one renovation goal." }, { status: 400 });
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json({ error: "OPENAI_API_KEY is missing. Add it to your environment to run milestone 3." }, { status: 500 });
+  }
+
+  const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
+
+  try {
+    const prompt = buildRoomAnalysisPrompt(body);
+
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0.4,
+        response_format: {
+          type: "json_schema",
+          json_schema: RESPONSE_JSON_SCHEMA,
+        },
+        messages: [
+          {
+            role: "system",
+            content: "You output JSON only and follow the schema exactly.",
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: prompt,
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: body.imageDataUrl,
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return NextResponse.json({ error: `OpenAI request failed: ${errorText}` }, { status: 502 });
+    }
+
+    const result = (await response.json()) as OpenAIChatCompletionResponse;
+    const content = result.choices?.[0]?.message?.content;
+
+    if (!content) {
+      return NextResponse.json({ error: "OpenAI returned an empty response." }, { status: 502 });
+    }
+
+    const parsed = JSON.parse(content) as RoomAnalysis;
+
+    if (!isRoomAnalysis(parsed)) {
+      return NextResponse.json({ error: "Model response did not match RoomAnalysis schema." }, { status: 502 });
+    }
+
+    return NextResponse.json(parsed);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unexpected server error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
