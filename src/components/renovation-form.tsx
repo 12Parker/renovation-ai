@@ -14,11 +14,17 @@ import { deleteSavedProject, getSavedProjects, upsertSavedProject, type SavedPro
 const ROOM_TYPES = ["basement", "bedroom", "kitchen", "laundry room", "office", "living room"] as const;
 const STYLES = ["cozy modern", "vintage", "Tudor", "Scandinavian", "moody", "minimalist"] as const;
 const GOALS = ["better lighting", "flooring", "storage", "layout", "paint", "built-ins"] as const;
+const CUSTOM_OPTION = "__custom__";
 
 export function RenovationForm() {
-  const [roomType, setRoomType] = useState(ROOM_TYPES[0]);
-  const [style, setStyle] = useState(STYLES[0]);
+  const [roomType, setRoomType] = useState<string>(ROOM_TYPES[0]);
+  const [style, setStyle] = useState<string>(STYLES[0]);
   const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
+  const [customRoomType, setCustomRoomType] = useState("");
+  const [customStyle, setCustomStyle] = useState("");
+  const [isCustomRoomType, setIsCustomRoomType] = useState(false);
+  const [isCustomStyle, setIsCustomStyle] = useState(false);
+  const [customGoalDraft, setCustomGoalDraft] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<RoomAnalysis | null>(null);
@@ -33,7 +39,12 @@ export function RenovationForm() {
   const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
-  const canAnalyze = useMemo(() => Boolean(imageDataUrl) && selectedGoals.length > 0 && !isAnalyzing, [imageDataUrl, selectedGoals, isAnalyzing]);
+  const effectiveRoomType = useMemo(() => customRoomType.trim() || roomType, [customRoomType, roomType]);
+  const effectiveStyle = useMemo(() => customStyle.trim() || style, [customStyle, style]);
+  const canAnalyze = useMemo(
+    () => Boolean(imageDataUrl) && selectedGoals.length > 0 && Boolean(effectiveRoomType) && Boolean(effectiveStyle) && !isAnalyzing,
+    [effectiveRoomType, effectiveStyle, imageDataUrl, selectedGoals, isAnalyzing],
+  );
   const costEstimate: CostEstimate | null = useMemo(() => {
     if (!analysis) {
       return null;
@@ -41,10 +52,10 @@ export function RenovationForm() {
 
     return buildCostEstimate({
       goals: selectedGoals,
-      roomType,
-      style,
+      roomType: effectiveRoomType,
+      style: effectiveStyle,
     });
-  }, [analysis, roomType, selectedGoals, style]);
+  }, [analysis, effectiveRoomType, selectedGoals, effectiveStyle]);
 
   useEffect(() => {
     setSavedProjects(getSavedProjects());
@@ -52,6 +63,16 @@ export function RenovationForm() {
 
   function toggleGoal(goal: string) {
     setSelectedGoals((prev) => (prev.includes(goal) ? prev.filter((item) => item !== goal) : [...prev, goal]));
+  }
+
+  function handleAddCustomGoal() {
+    const normalizedGoal = customGoalDraft.trim();
+    if (!normalizedGoal) {
+      return;
+    }
+
+    setSelectedGoals((prev) => (prev.includes(normalizedGoal) ? prev : [...prev, normalizedGoal]));
+    setCustomGoalDraft("");
   }
 
   function handleUpload(file: File | null) {
@@ -86,8 +107,8 @@ export function RenovationForm() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          roomType,
-          style,
+          roomType: effectiveRoomType,
+          style: effectiveStyle,
           goals: selectedGoals,
           imageDataUrl,
         }),
@@ -103,7 +124,7 @@ export function RenovationForm() {
       setPromptDraft(result.imagePrompt);
       setDidCopyPrompt(false);
       setGeneratedConceptImage(null);
-      setProjectTitle((prev) => prev || `${roomType} ${style} plan`);
+      setProjectTitle((prev) => prev || `${effectiveRoomType} ${effectiveStyle} plan`);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unexpected error");
       setAnalysis(null);
@@ -122,8 +143,8 @@ export function RenovationForm() {
 
     const generated = buildBeforeAfterPrompt(
       {
-        roomType,
-        style,
+        roomType: effectiveRoomType,
+        style: effectiveStyle,
         goals: selectedGoals,
         highlights,
       },
@@ -185,7 +206,7 @@ export function RenovationForm() {
 
     const nowIso = new Date().toISOString();
     const projectId = `${Date.now()}`;
-    const normalizedTitle = projectTitle.trim() || `${roomType} renovation plan`;
+    const normalizedTitle = projectTitle.trim() || `${effectiveRoomType} renovation plan`;
 
     const saved = upsertSavedProject({
       id: projectId,
@@ -193,8 +214,8 @@ export function RenovationForm() {
       notes: projectNotes.trim() || undefined,
       createdAt: nowIso,
       updatedAt: nowIso,
-      roomType,
-      style,
+      roomType: effectiveRoomType,
+      style: effectiveStyle,
       goals: selectedGoals,
       imageDataUrl: imageDataUrl ?? undefined,
       generatedImageDataUrl: generatedConceptImage ?? undefined,
@@ -209,8 +230,29 @@ export function RenovationForm() {
   function loadProject(project: SavedProject) {
     setProjectTitle(project.title);
     setProjectNotes(project.notes ?? "");
-    setRoomType((ROOM_TYPES.includes(project.roomType as (typeof ROOM_TYPES)[number]) ? project.roomType : ROOM_TYPES[0]) as (typeof ROOM_TYPES)[number]);
-    setStyle((STYLES.includes(project.style as (typeof STYLES)[number]) ? project.style : STYLES[0]) as (typeof STYLES)[number]);
+    const savedRoomType = project.roomType;
+    const savedStyle = project.style;
+
+    if (ROOM_TYPES.includes(savedRoomType as (typeof ROOM_TYPES)[number])) {
+      setRoomType(savedRoomType);
+      setIsCustomRoomType(false);
+      setCustomRoomType("");
+    } else {
+      setRoomType(ROOM_TYPES[0]);
+      setIsCustomRoomType(true);
+      setCustomRoomType(savedRoomType);
+    }
+
+    if (STYLES.includes(savedStyle as (typeof STYLES)[number])) {
+      setStyle(savedStyle);
+      setIsCustomStyle(false);
+      setCustomStyle("");
+    } else {
+      setStyle(STYLES[0]);
+      setIsCustomStyle(true);
+      setCustomStyle(savedStyle);
+    }
+
     setSelectedGoals(project.goals);
     setImageDataUrl(project.imageDataUrl ?? null);
     setAnalysis(project.analysis);
@@ -253,36 +295,91 @@ export function RenovationForm() {
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="space-y-2 text-sm font-medium">
               Room type
-              <select className="w-full rounded-md border bg-background px-3 py-2 text-sm" value={roomType} onChange={(event) => setRoomType(event.target.value as (typeof ROOM_TYPES)[number])}>
+              <select
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={isCustomRoomType ? CUSTOM_OPTION : roomType}
+                onChange={(event) => {
+                  if (event.target.value === CUSTOM_OPTION) {
+                    setIsCustomRoomType(true);
+                    return;
+                  }
+
+                  setRoomType(event.target.value);
+                  setIsCustomRoomType(false);
+                  setCustomRoomType("");
+                }}
+              >
                 {ROOM_TYPES.map((type) => (
                   <option key={type} value={type}>
                     {type}
                   </option>
                 ))}
+                <option value={CUSTOM_OPTION}>Custom room type…</option>
               </select>
+              {isCustomRoomType ? (
+                <input
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={customRoomType}
+                  onChange={(event) => setCustomRoomType(event.target.value)}
+                  placeholder="e.g., sunroom, attic, hallway"
+                />
+              ) : null}
             </label>
 
             <label className="space-y-2 text-sm font-medium">
               Style
-              <select className="w-full rounded-md border bg-background px-3 py-2 text-sm" value={style} onChange={(event) => setStyle(event.target.value as (typeof STYLES)[number])}>
+              <select
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={isCustomStyle ? CUSTOM_OPTION : style}
+                onChange={(event) => {
+                  if (event.target.value === CUSTOM_OPTION) {
+                    setIsCustomStyle(true);
+                    return;
+                  }
+
+                  setStyle(event.target.value);
+                  setIsCustomStyle(false);
+                  setCustomStyle("");
+                }}
+              >
                 {STYLES.map((option) => (
                   <option key={option} value={option}>
                     {option}
                   </option>
                 ))}
+                <option value={CUSTOM_OPTION}>Custom style…</option>
               </select>
+              {isCustomStyle ? (
+                <input
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={customStyle}
+                  onChange={(event) => setCustomStyle(event.target.value)}
+                  placeholder="e.g., Japandi, industrial loft, coastal"
+                />
+              ) : null}
             </label>
           </div>
 
           <fieldset className="space-y-2">
             <legend className="text-sm font-medium">Goals</legend>
             <div className="grid grid-cols-2 gap-2">
-              {GOALS.map((goal) => (
+              {[...GOALS, ...selectedGoals.filter((goal) => !GOALS.includes(goal as (typeof GOALS)[number]))].map((goal) => (
                 <label key={goal} className="flex items-center gap-2 rounded-md border p-2 text-sm">
                   <input type="checkbox" checked={selectedGoals.includes(goal)} onChange={() => toggleGoal(goal)} />
                   <span>{goal}</span>
                 </label>
               ))}
+            </div>
+            <div className="mt-2 flex gap-2">
+              <input
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={customGoalDraft}
+                onChange={(event) => setCustomGoalDraft(event.target.value)}
+                placeholder="Add your own goal (e.g., improve acoustics)"
+              />
+              <Button type="button" variant="outline" onClick={handleAddCustomGoal}>
+                Add goal
+              </Button>
             </div>
           </fieldset>
 
@@ -479,7 +576,7 @@ export function RenovationForm() {
                       <Button type="button" size="sm" variant="outline" onClick={() => loadProject(project)}>
                         Load
                       </Button>
-                      <Button type="button" size="sm" variant="ghost" onClick={() => handleDeleteProject(project.id)}>
+                      <Button type="button" size="sm" variant="outline" onClick={() => handleDeleteProject(project.id)}>
                         <Trash2 className="h-4 w-4" />
                         Delete
                       </Button>

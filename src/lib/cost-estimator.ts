@@ -9,6 +9,23 @@ const GOAL_TO_CATEGORIES: Record<string, CostLineItem["category"][]> = {
   layout: ["Labour", "Electrical", "Plumbing"],
 };
 
+const GOAL_KEYWORD_TO_CATEGORIES: Array<{ keyword: string; categories: CostLineItem["category"][] }> = [
+  { keyword: "light", categories: ["Lighting", "Electrical"] },
+  { keyword: "floor", categories: ["Flooring"] },
+  { keyword: "paint", categories: ["Paint"] },
+  { keyword: "storage", categories: ["Built-ins", "Furniture"] },
+  { keyword: "closet", categories: ["Built-ins", "Furniture"] },
+  { keyword: "cabinet", categories: ["Built-ins"] },
+  { keyword: "layout", categories: ["Labour", "Electrical", "Plumbing"] },
+  { keyword: "open concept", categories: ["Labour", "Electrical", "Plumbing"] },
+  { keyword: "plumbing", categories: ["Plumbing"] },
+  { keyword: "sink", categories: ["Plumbing"] },
+  { keyword: "electrical", categories: ["Electrical"] },
+  { keyword: "outlet", categories: ["Electrical"] },
+  { keyword: "furniture", categories: ["Furniture"] },
+  { keyword: "seating", categories: ["Furniture"] },
+];
+
 const BASE_CATEGORY_COSTS: Record<CostLineItem["category"], { diy: number; contractor: number }> = {
   Flooring: { diy: 1400, contractor: 4600 },
   Paint: { diy: 450, contractor: 1800 },
@@ -63,6 +80,17 @@ export function buildCostEstimate({
   goals.forEach((goal) => {
     GOAL_TO_CATEGORIES[goal]?.forEach((category) => {
       targetedCategories.add(category);
+    });
+
+    const normalizedGoal = goal.toLowerCase();
+    GOAL_KEYWORD_TO_CATEGORIES.forEach(({ keyword, categories }) => {
+      if (!normalizedGoal.includes(keyword)) {
+        return;
+      }
+
+      categories.forEach((category) => {
+        targetedCategories.add(category);
+      });
     });
   });
 
