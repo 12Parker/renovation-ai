@@ -245,7 +245,9 @@ Project now includes:
 - API mock route at `src/app/api/analyze-room/route.ts`
 - Type models under `src/lib/models`
 - Prompt builder and local storage helper modules
-- Planning estimate ranges with line-item assumptions, contingency, and contractor specialties
+- Location-aware CAD estimate ranges with Ontario postal-code region matching, line-item quantities, assumptions, contingency, and contractor specialties
+- Seed pricing catalog and StatsCan RRPI calibration layer under `src/lib/pricing` for quantity-based local estimates
+- RRPI refresh script: `npm run pricing:update-rrpi -- path/to/18100286.csv`
 - Contractor matching MVP from `docs/next-level-roadmap.md` with mocked Ontario providers, postal-code scoring, shortlists, and copyable scope briefs
 
 ## License

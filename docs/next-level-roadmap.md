@@ -39,6 +39,14 @@
 - Start with mocked contractor dataset for deterministic UX.
 - Add external sources later (marketplaces/directories/licensing APIs).
 
+### Estimate engine foundation
+- `src/lib/location/postal-code.ts`: normalizes Ontario postal codes, extracts FSA, and resolves the pricing region/CMA fallback.
+- `src/lib/pricing/catalog.ts`: seed Ontario unit-cost catalog with source metadata, unit types, confidence, and trade specialties.
+- `src/lib/pricing/estimate-engine.ts`: quantity-based CAD estimate engine using room area, postal-code region, quality tier, home age, and scope complexity.
+- `src/lib/pricing/rrpi-calibration.ts`: category-to-RRPI project group mapping plus per-category regional calibration multipliers.
+- `scripts/update-rrpi-calibration.mjs`: importer for the official StatsCan table `18-10-0286-01` CSV; run with `npm run pricing:update-rrpi -- path/to/18100286.csv` after downloading the table.
+- Next data upgrade: add quote capture so accepted contractor quotes can calibrate category-level minimums and local variance.
+
 ### Safety and trust
 - Display "informational only" disclaimer.
 - Mark licensing status and verification timestamp.

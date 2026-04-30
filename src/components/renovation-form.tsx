@@ -9,13 +9,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { buildBeforeAfterPrompt } from "@/lib/ai/prompts";
 import { buildContractorMatchGroups, buildContractorOutreachBrief } from "@/lib/contractor-matching";
 import { buildCostEstimate, formatCad, formatCadRange } from "@/lib/cost-estimator";
-import type { ContractorMatch, ContractorMatchGroup, CostEstimate, RoomAnalysis } from "@/lib/models/room-analysis";
+import type {
+  ContractorMatch,
+  ContractorMatchGroup,
+  CostEstimate,
+  EstimateQualityTier,
+  HomeAgeBand,
+  RoomAnalysis,
+  ScopeComplexity,
+} from "@/lib/models/room-analysis";
 import { deleteSavedProject, getSavedProjects, upsertSavedProject, type SavedProject } from "@/lib/storage/projects";
 
 const ROOM_TYPES = ["basement", "bedroom", "kitchen", "laundry room", "office", "living room"] as const;
 const STYLES = ["cozy modern", "vintage", "Tudor", "Scandinavian", "moody", "minimalist"] as const;
 const GOALS = ["better lighting", "flooring", "storage", "layout", "paint", "built-ins"] as const;
 const CUSTOM_OPTION = "__custom__";
+const QUALITY_TIERS: EstimateQualityTier[] = ["budget", "standard", "premium"];
+const HOME_AGE_BANDS: Array<{ value: HomeAgeBand; label: string }> = [
+  { value: "pre_1960", label: "Pre-1960" },
+  { value: "1960_1990", label: "1960-1990" },
+  { value: "1990_2010", label: "1990-2010" },
+  { value: "2010_plus", label: "2010+" },
+];
+const SCOPE_COMPLEXITIES: ScopeComplexity[] = ["cosmetic", "moderate", "major"];
 
 function contractorSelectionKey(group: ContractorMatchGroup, contractor: ContractorMatch): string {
   return `${group.trade}:${contractor.id}`;
@@ -50,6 +66,10 @@ export function RenovationForm() {
   const [projectTitle, setProjectTitle] = useState("");
   const [projectNotes, setProjectNotes] = useState("");
   const [projectPostalCode, setProjectPostalCode] = useState("");
+  const [estimateRoomAreaSqft, setEstimateRoomAreaSqft] = useState("");
+  const [estimateQualityTier, setEstimateQualityTier] = useState<EstimateQualityTier>("standard");
+  const [estimateHomeAgeBand, setEstimateHomeAgeBand] = useState<HomeAgeBand>("1990_2010");
+  const [estimateScopeComplexity, setEstimateScopeComplexity] = useState<ScopeComplexity>("moderate");
   const [shortlistedContractorIds, setShortlistedContractorIds] = useState<string[]>([]);
   const [copiedContractorId, setCopiedContractorId] = useState<string | null>(null);
   const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
@@ -70,8 +90,24 @@ export function RenovationForm() {
       goals: selectedGoals,
       roomType: effectiveRoomType,
       style: effectiveStyle,
+      contractorTasks: analysis.contractorTasks,
+      postalCode: projectPostalCode,
+      roomAreaSqft: Number(estimateRoomAreaSqft) || undefined,
+      qualityTier: estimateQualityTier,
+      homeAgeBand: estimateHomeAgeBand,
+      scopeComplexity: estimateScopeComplexity,
     });
-  }, [analysis, effectiveRoomType, selectedGoals, effectiveStyle]);
+  }, [
+    analysis,
+    effectiveRoomType,
+    estimateHomeAgeBand,
+    estimateQualityTier,
+    estimateRoomAreaSqft,
+    estimateScopeComplexity,
+    projectPostalCode,
+    selectedGoals,
+    effectiveStyle,
+  ]);
   const contractorMatchGroups = useMemo(() => {
     if (!analysis || !costEstimate) {
       return [];
@@ -281,6 +317,10 @@ export function RenovationForm() {
       style: effectiveStyle,
       goals: selectedGoals,
       postalCode: projectPostalCode.trim() || undefined,
+      estimateRoomAreaSqft: Number(estimateRoomAreaSqft) || undefined,
+      estimateQualityTier,
+      estimateHomeAgeBand,
+      estimateScopeComplexity,
       shortlistedContractorIds,
       imageDataUrl: imageDataUrl ?? undefined,
       generatedImageDataUrl: generatedConceptImage ?? undefined,
@@ -296,6 +336,10 @@ export function RenovationForm() {
     setProjectTitle(project.title);
     setProjectNotes(project.notes ?? "");
     setProjectPostalCode(getSavedPostalCode(project));
+    setEstimateRoomAreaSqft(project.estimateRoomAreaSqft ? `${project.estimateRoomAreaSqft}` : "");
+    setEstimateQualityTier(project.estimateQualityTier ?? "standard");
+    setEstimateHomeAgeBand(project.estimateHomeAgeBand ?? "1990_2010");
+    setEstimateScopeComplexity(project.estimateScopeComplexity ?? "moderate");
     setShortlistedContractorIds(project.shortlistedContractorIds ?? []);
     setCopiedContractorId(null);
     const savedRoomType = project.roomType;
@@ -451,6 +495,80 @@ export function RenovationForm() {
             </div>
           </fieldset>
 
+          <fieldset className="space-y-3">
+            <legend className="text-sm font-medium">Estimate inputs</legend>
+            <label className="block space-y-2 text-sm font-medium">
+              Project postal code
+              <input
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                autoComplete="postal-code"
+                value={projectPostalCode}
+                onChange={(event) => setProjectPostalCode(normalizePostalCodeInput(event.target.value))}
+                placeholder="e.g., M5V 2T6"
+              />
+            </label>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="space-y-2 text-sm font-medium">
+                Room area
+                <input
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  inputMode="numeric"
+                  min="40"
+                  type="number"
+                  value={estimateRoomAreaSqft}
+                  onChange={(event) => setEstimateRoomAreaSqft(event.target.value)}
+                  placeholder="sqft"
+                />
+              </label>
+
+              <label className="space-y-2 text-sm font-medium">
+                Quality tier
+                <select
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={estimateQualityTier}
+                  onChange={(event) => setEstimateQualityTier(event.target.value as EstimateQualityTier)}
+                >
+                  {QUALITY_TIERS.map((tier) => (
+                    <option key={tier} value={tier}>
+                      {tier}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-2 text-sm font-medium">
+                Home age
+                <select
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={estimateHomeAgeBand}
+                  onChange={(event) => setEstimateHomeAgeBand(event.target.value as HomeAgeBand)}
+                >
+                  {HOME_AGE_BANDS.map((ageBand) => (
+                    <option key={ageBand.value} value={ageBand.value}>
+                      {ageBand.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-2 text-sm font-medium">
+                Scope
+                <select
+                  className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  value={estimateScopeComplexity}
+                  onChange={(event) => setEstimateScopeComplexity(event.target.value as ScopeComplexity)}
+                >
+                  {SCOPE_COMPLEXITIES.map((complexity) => (
+                    <option key={complexity} value={complexity}>
+                      {complexity}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </fieldset>
+
           <Button className="w-full" disabled={!canAnalyze} onClick={handleAnalyze}>
             {isAnalyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {isAnalyzing ? "Analyzing..." : "Analyze room"}
@@ -515,6 +633,14 @@ export function RenovationForm() {
                   <p className="mt-1 text-xs text-muted-foreground">
                     Compare DIY and contractor ranges with scope notes for contractor quoting.
                   </p>
+                  <div className="mt-2 rounded-md border bg-muted/20 p-3 text-xs">
+                    <p className="font-medium">
+                      {costEstimate.region.regionName} · {costEstimate.inputs.roomAreaSqft} sqft · {costEstimate.inputs.qualityTier}
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      Confidence: {costEstimate.confidence} · regional factor {costEstimate.region.regionalMultiplier.toFixed(2)}
+                    </p>
+                  </div>
                   <div className="mt-2 overflow-x-auto rounded-md border">
                     <table className="min-w-[620px] w-full text-left text-xs">
                       <thead className="bg-muted/40">
@@ -529,8 +655,13 @@ export function RenovationForm() {
                           <tr key={item.category} className="border-t">
                             <td className="px-2 py-2 align-top">
                               <p className="font-medium">{item.category}</p>
-                              <p className="mt-1 text-muted-foreground">{item.scopeNote}</p>
-                            </td>
+                              <p>{item.label}</p>
+                    <p className="mt-1 text-muted-foreground">{item.scopeNote}</p>
+                    <p className="mt-1 text-muted-foreground">Quantity: {item.quantityLabel}</p>
+                    <p className="mt-1 text-muted-foreground">
+                      Calibration: {item.calibrationMultiplier.toFixed(2)} · {item.calibrationReferencePeriod}
+                    </p>
+                  </td>
                             <td className="px-2 py-2 align-top">{item.includedInDiyRefresh ? formatCadRange(item.diyRange) : "—"}</td>
                             <td className="px-2 py-2 align-top">
                               {item.includedInFullRenovation ? (
@@ -566,6 +697,17 @@ export function RenovationForm() {
                       <li key={assumption}>{assumption}</li>
                     ))}
                   </ul>
+                  <p className="mt-2 text-xs font-medium">Excluded from estimate</p>
+                  <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                    {costEstimate.exclusions.map((exclusion) => (
+                      <li key={exclusion}>{exclusion}</li>
+                    ))}
+                  </ul>
+                  <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                    {costEstimate.sourceSummary.map((source) => (
+                      <p key={source}>{source}</p>
+                    ))}
+                  </div>
                 </section>
               ) : null}
 
@@ -595,20 +737,10 @@ export function RenovationForm() {
                       Mock recommendations link contractor trades to the estimate lines above.
                     </p>
                   </div>
-                  <label className="block space-y-2 text-sm font-medium">
-                    Project postal code
-                    <input
-                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-                      autoComplete="postal-code"
-                      value={projectPostalCode}
-                      onChange={(event) => setProjectPostalCode(normalizePostalCodeInput(event.target.value))}
-                      placeholder="e.g., M5V 2T6"
-                    />
-                  </label>
 
                   {projectPostalCode.trim().length < 3 ? (
                     <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-                      Enter an Ontario postal code to score service-area fit and generate a trade-by-trade shortlist.
+                      Add an Ontario postal code in estimate inputs to score service-area fit and generate a trade-by-trade shortlist.
                     </div>
                   ) : (
                     <>

@@ -1,4 +1,4 @@
-import type { CostEstimate, RoomAnalysis } from "@/lib/models/room-analysis";
+import type { CostEstimate, EstimateQualityTier, HomeAgeBand, RoomAnalysis, ScopeComplexity } from "@/lib/models/room-analysis";
 
 const PROJECTS_KEY = "renovation-ai:projects";
 
@@ -12,6 +12,10 @@ export type SavedProject = {
   style: string;
   goals: string[];
   postalCode?: string;
+  estimateRoomAreaSqft?: number;
+  estimateQualityTier?: EstimateQualityTier;
+  estimateHomeAgeBand?: HomeAgeBand;
+  estimateScopeComplexity?: ScopeComplexity;
   shortlistedContractorIds?: string[];
   imageDataUrl?: string;
   generatedImageDataUrl?: string;

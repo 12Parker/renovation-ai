@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "pricing:update-rrpi": "node scripts/update-rrpi-calibration.mjs"
   },
   "dependencies": {
     "next": "15.2.0",

@@ -28,6 +28,30 @@ export type CostRange = {
   high: number;
 };
 
+export type EstimateUnit = "sqft" | "linear_ft" | "each" | "hour" | "allowance";
+
+export type EstimateConfidence = "low" | "medium" | "high";
+
+export type EstimateQualityTier = "budget" | "standard" | "premium";
+
+export type HomeAgeBand = "pre_1960" | "1960_1990" | "1990_2010" | "2010_plus";
+
+export type ScopeComplexity = "cosmetic" | "moderate" | "major";
+
+export type QuantitySource = "user" | "room_default" | "scope_default" | "catalog_allowance";
+
+export type PostalRegion = {
+  postalCode: string;
+  fsa: string;
+  province: "ON" | "unknown";
+  regionName: string;
+  pricingRegion: "Toronto" | "Ottawa" | "Central Ontario" | "Southwestern Ontario" | "Northern Ontario" | "Ontario";
+  cma?: "Toronto" | "Ottawa" | "London";
+  isOntario: boolean;
+  regionalMultiplier: number;
+  sourceSummary: string;
+};
+
 export type CostLineItem = {
   category: CostCategory;
   diyCost: number;
@@ -38,6 +62,22 @@ export type CostLineItem = {
   includedInFullRenovation: boolean;
   scopeNote: string;
   contractorSpecialty: string;
+  catalogItemId: string;
+  label: string;
+  unit: EstimateUnit;
+  quantity: number;
+  quantityLabel: string;
+  quantitySource: QuantitySource;
+  unitCostRange: CostRange;
+  regionalMultiplier: number;
+  calibrationMultiplier: number;
+  calibrationSource: string;
+  calibrationReferencePeriod: string;
+  qualityTierFactor: number;
+  complexityFactor: number;
+  homeAgeFactor: number;
+  sourceSummary: string[];
+  confidence: EstimateConfidence;
 };
 
 export type CostEstimate = {
@@ -49,6 +89,17 @@ export type CostEstimate = {
   contingencyPercent: number;
   confidence: "directional" | "planning" | "bid-ready";
   assumptions: string[];
+  exclusions: string[];
+  sourceSummary: string[];
+  region: PostalRegion;
+  inputs: {
+    postalCode: string;
+    roomAreaSqft: number;
+    roomAreaSource: QuantitySource;
+    qualityTier: EstimateQualityTier;
+    homeAgeBand: HomeAgeBand;
+    scopeComplexity: ScopeComplexity;
+  };
 };
 
 export type ContractorMatch = {
