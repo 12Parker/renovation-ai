@@ -6,11 +6,11 @@ export default function HomePage() {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
         <header className="space-y-3">
           <p className="inline-flex rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
-            Milestones 6 + 7 — Saved projects & cost estimator
+            Next level — estimates & contractor matching
           </p>
           <h1 className="text-4xl font-bold tracking-tight md:text-5xl">Renovation AI</h1>
           <p className="max-w-3xl text-slate-600">
-            Turn room photos into practical renovation plans with clear priorities, budget tiers, and a generated redesign prompt.
+            Turn room photos into practical renovation plans with estimate ranges, trade detection, contractor shortlists, and a generated redesign prompt.
           </p>
         </header>
         <RenovationForm />

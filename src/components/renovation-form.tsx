@@ -7,14 +7,27 @@ import { Check, Copy, Loader2, RefreshCw, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { buildBeforeAfterPrompt } from "@/lib/ai/prompts";
-import { buildCostEstimate, formatUsd } from "@/lib/cost-estimator";
-import type { CostEstimate, RoomAnalysis } from "@/lib/models/room-analysis";
+import { buildContractorMatchGroups, buildContractorOutreachBrief } from "@/lib/contractor-matching";
+import { buildCostEstimate, formatCad, formatCadRange } from "@/lib/cost-estimator";
+import type { ContractorMatch, ContractorMatchGroup, CostEstimate, RoomAnalysis } from "@/lib/models/room-analysis";
 import { deleteSavedProject, getSavedProjects, upsertSavedProject, type SavedProject } from "@/lib/storage/projects";
 
 const ROOM_TYPES = ["basement", "bedroom", "kitchen", "laundry room", "office", "living room"] as const;
 const STYLES = ["cozy modern", "vintage", "Tudor", "Scandinavian", "moody", "minimalist"] as const;
 const GOALS = ["better lighting", "flooring", "storage", "layout", "paint", "built-ins"] as const;
 const CUSTOM_OPTION = "__custom__";
+
+function contractorSelectionKey(group: ContractorMatchGroup, contractor: ContractorMatch): string {
+  return `${group.trade}:${contractor.id}`;
+}
+
+function normalizePostalCodeInput(value: string): string {
+  return value.toUpperCase();
+}
+
+function getSavedPostalCode(project: SavedProject): string {
+  return project.postalCode ?? (project as SavedProject & { zipCode?: string }).zipCode ?? "";
+}
 
 export function RenovationForm() {
   const [roomType, setRoomType] = useState<string>(ROOM_TYPES[0]);
@@ -36,6 +49,9 @@ export function RenovationForm() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [projectTitle, setProjectTitle] = useState("");
   const [projectNotes, setProjectNotes] = useState("");
+  const [projectPostalCode, setProjectPostalCode] = useState("");
+  const [shortlistedContractorIds, setShortlistedContractorIds] = useState<string[]>([]);
+  const [copiedContractorId, setCopiedContractorId] = useState<string | null>(null);
   const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
@@ -56,6 +72,20 @@ export function RenovationForm() {
       style: effectiveStyle,
     });
   }, [analysis, effectiveRoomType, selectedGoals, effectiveStyle]);
+  const contractorMatchGroups = useMemo(() => {
+    if (!analysis || !costEstimate) {
+      return [];
+    }
+
+    return buildContractorMatchGroups({
+      analysis,
+      costEstimate,
+      goals: selectedGoals,
+      roomType: effectiveRoomType,
+      style: effectiveStyle,
+      postalCode: projectPostalCode,
+    });
+  }, [analysis, costEstimate, effectiveRoomType, effectiveStyle, projectPostalCode, selectedGoals]);
 
   useEffect(() => {
     setSavedProjects(getSavedProjects());
@@ -87,6 +117,8 @@ export function RenovationForm() {
       setErrorMessage(null);
       setStatusMessage(null);
       setGeneratedConceptImage(null);
+      setShortlistedContractorIds([]);
+      setCopiedContractorId(null);
     };
     reader.readAsDataURL(file);
   }
@@ -124,6 +156,8 @@ export function RenovationForm() {
       setPromptDraft(result.imagePrompt);
       setDidCopyPrompt(false);
       setGeneratedConceptImage(null);
+      setShortlistedContractorIds([]);
+      setCopiedContractorId(null);
       setProjectTitle((prev) => prev || `${effectiveRoomType} ${effectiveStyle} plan`);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Unexpected error");
@@ -163,6 +197,35 @@ export function RenovationForm() {
     await navigator.clipboard.writeText(promptDraft);
     setDidCopyPrompt(true);
     setTimeout(() => setDidCopyPrompt(false), 1500);
+  }
+
+  async function handleCopyContractorBrief(group: ContractorMatchGroup, contractor: ContractorMatch) {
+    if (!analysis || !costEstimate) {
+      return;
+    }
+
+    const contractorKey = contractorSelectionKey(group, contractor);
+    const brief = buildContractorOutreachBrief({
+      analysis,
+      costEstimate,
+      goals: selectedGoals,
+      roomType: effectiveRoomType,
+      style: effectiveStyle,
+      postalCode: projectPostalCode,
+      group,
+      match: contractor,
+    });
+
+    await navigator.clipboard.writeText(brief);
+    setCopiedContractorId(contractorKey);
+    setTimeout(() => setCopiedContractorId(null), 1500);
+  }
+
+  function toggleContractorShortlist(group: ContractorMatchGroup, contractor: ContractorMatch) {
+    const contractorKey = contractorSelectionKey(group, contractor);
+    setShortlistedContractorIds((prev) =>
+      prev.includes(contractorKey) ? prev.filter((item) => item !== contractorKey) : [...prev, contractorKey],
+    );
   }
 
   async function handleGenerateConcept() {
@@ -217,6 +280,8 @@ export function RenovationForm() {
       roomType: effectiveRoomType,
       style: effectiveStyle,
       goals: selectedGoals,
+      postalCode: projectPostalCode.trim() || undefined,
+      shortlistedContractorIds,
       imageDataUrl: imageDataUrl ?? undefined,
       generatedImageDataUrl: generatedConceptImage ?? undefined,
       analysis,
@@ -230,6 +295,9 @@ export function RenovationForm() {
   function loadProject(project: SavedProject) {
     setProjectTitle(project.title);
     setProjectNotes(project.notes ?? "");
+    setProjectPostalCode(getSavedPostalCode(project));
+    setShortlistedContractorIds(project.shortlistedContractorIds ?? []);
+    setCopiedContractorId(null);
     const savedRoomType = project.roomType;
     const savedStyle = project.style;
 
@@ -444,37 +512,60 @@ export function RenovationForm() {
               {costEstimate ? (
                 <section>
                   <h3 className="font-semibold">Cost estimator</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">Compare a DIY refresh against a contractor-led full renovation.</p>
-                  <div className="mt-2 overflow-hidden rounded-md border">
-                    <table className="w-full text-left text-xs">
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Compare DIY and contractor ranges with scope notes for contractor quoting.
+                  </p>
+                  <div className="mt-2 overflow-x-auto rounded-md border">
+                    <table className="min-w-[620px] w-full text-left text-xs">
                       <thead className="bg-muted/40">
                         <tr>
                           <th className="px-2 py-2">Line item</th>
-                          <th className="px-2 py-2">DIY refresh</th>
-                          <th className="px-2 py-2">Full renovation</th>
+                          <th className="px-2 py-2">DIY range</th>
+                          <th className="px-2 py-2">Contractor range</th>
                         </tr>
                       </thead>
                       <tbody>
                         {costEstimate.lineItems.map((item) => (
                           <tr key={item.category} className="border-t">
-                            <td className="px-2 py-2">{item.category}</td>
-                            <td className="px-2 py-2">{item.includedInDiyRefresh ? formatUsd(item.diyCost) : "—"}</td>
-                            <td className="px-2 py-2">{item.includedInFullRenovation ? formatUsd(item.contractorCost) : "—"}</td>
+                            <td className="px-2 py-2 align-top">
+                              <p className="font-medium">{item.category}</p>
+                              <p className="mt-1 text-muted-foreground">{item.scopeNote}</p>
+                            </td>
+                            <td className="px-2 py-2 align-top">{item.includedInDiyRefresh ? formatCadRange(item.diyRange) : "—"}</td>
+                            <td className="px-2 py-2 align-top">
+                              {item.includedInFullRenovation ? (
+                                <>
+                                  <p>{formatCadRange(item.contractorRange)}</p>
+                                  <p className="mt-1 text-muted-foreground">{item.contractorSpecialty}</p>
+                                </>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                  <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
                     <div className="rounded-md border bg-muted/20 p-2">
                       <p className="font-medium">DIY refresh total</p>
-                      <p>{formatUsd(costEstimate.diyRefreshTotal)}</p>
+                      <p>{formatCadRange(costEstimate.diyRefreshRange)}</p>
+                      <p className="text-muted-foreground">Typical: {formatCad(costEstimate.diyRefreshTotal)}</p>
                     </div>
                     <div className="rounded-md border bg-muted/20 p-2">
                       <p className="font-medium">Full renovation total</p>
-                      <p>{formatUsd(costEstimate.fullRenovationTotal)}</p>
+                      <p>{formatCadRange(costEstimate.fullRenovationRange)}</p>
+                      <p className="text-muted-foreground">
+                        Typical with {costEstimate.contingencyPercent}% contingency: {formatCad(costEstimate.fullRenovationTotal)}
+                      </p>
                     </div>
                   </div>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                    {costEstimate.assumptions.map((assumption) => (
+                      <li key={assumption}>{assumption}</li>
+                    ))}
+                  </ul>
                 </section>
               ) : null}
 
@@ -495,6 +586,121 @@ export function RenovationForm() {
                   ))}
                 </ul>
               </section>
+
+              {costEstimate ? (
+                <section className="space-y-3">
+                  <div>
+                    <h3 className="font-semibold">Contractor matching</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Mock recommendations link contractor trades to the estimate lines above.
+                    </p>
+                  </div>
+                  <label className="block space-y-2 text-sm font-medium">
+                    Project postal code
+                    <input
+                      className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                      autoComplete="postal-code"
+                      value={projectPostalCode}
+                      onChange={(event) => setProjectPostalCode(normalizePostalCodeInput(event.target.value))}
+                      placeholder="e.g., M5V 2T6"
+                    />
+                  </label>
+
+                  {projectPostalCode.trim().length < 3 ? (
+                    <div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
+                      Enter an Ontario postal code to score service-area fit and generate a trade-by-trade shortlist.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="rounded-md border bg-muted/20 p-3 text-xs text-muted-foreground">
+                        {shortlistedContractorIds.length} shortlisted. Informational only: verify licensing, insurance, availability, and scope
+                        directly before hiring.
+                      </div>
+
+                      {contractorMatchGroups.map((group) => (
+                        <div key={group.trade} className="rounded-md border p-3">
+                          <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <h4 className="text-sm font-semibold">{group.trade}</h4>
+                              <p className="text-xs text-muted-foreground">
+                                {group.categories.join(", ")} • planning range {formatCadRange(group.estimateRange)}
+                              </p>
+                            </div>
+                            <span className="rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">{group.matches.length} matches</span>
+                          </div>
+
+                          {group.tasks.length ? (
+                            <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                              {group.tasks.map((task) => (
+                                <li key={task}>{task}</li>
+                              ))}
+                            </ul>
+                          ) : null}
+
+                          <div className="mt-3 grid gap-2">
+                            {group.matches.map((contractor) => {
+                              const contractorKey = contractorSelectionKey(group, contractor);
+                              const isShortlisted = shortlistedContractorIds.includes(contractorKey);
+                              const didCopyContractor = copiedContractorId === contractorKey;
+
+                              return (
+                                <article key={contractorKey} className="rounded-md border bg-background p-3 text-sm">
+                                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                    <div>
+                                      <p className="font-medium">{contractor.name}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {contractor.rating.toFixed(1)} rating · {contractor.reviewCount} reviews · fit score {contractor.fitScore}
+                                      </p>
+                                    </div>
+                                    <div className="text-xs text-muted-foreground sm:text-right">
+                                      <p>{contractor.leadTimeWeeks} lead time</p>
+                                      <p>Minimum {formatCad(contractor.projectMinimum)}</p>
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-2 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                                    <p>Expected range: {formatCadRange(contractor.typicalProjectRange)}</p>
+                                    <p>{contractor.licenseSummary}</p>
+                                    <p>Service area: {contractor.serviceArea}</p>
+                                    <p>Scope: {contractor.recommendedScope}</p>
+                                  </div>
+
+                                  <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+                                    {contractor.reasons.slice(0, 3).map((reason) => (
+                                      <li key={reason}>{reason}</li>
+                                    ))}
+                                  </ul>
+
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant={isShortlisted ? "secondary" : "outline"}
+                                      onClick={() => toggleContractorShortlist(group, contractor)}
+                                    >
+                                      {isShortlisted ? <Check className="h-4 w-4" /> : null}
+                                      {isShortlisted ? "Shortlisted" : "Shortlist"}
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleCopyContractorBrief(group, contractor)}
+                                    >
+                                      {didCopyContractor ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                                      {didCopyContractor ? "Brief copied" : "Copy scope brief"}
+                                    </Button>
+                                  </div>
+                                </article>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </section>
+              ) : null}
 
               <section>
                 <h3 className="font-semibold">Image prompt</h3>
@@ -571,6 +777,12 @@ export function RenovationForm() {
                   <li key={project.id} className="rounded-md border p-3 text-sm">
                     <p className="font-medium">{project.title}</p>
                     <p className="text-xs text-muted-foreground">Updated {new Date(project.updatedAt).toLocaleString()}</p>
+                    {getSavedPostalCode(project) || project.shortlistedContractorIds?.length ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {getSavedPostalCode(project) ? `Postal code ${getSavedPostalCode(project)}` : "No postal code saved"}
+                        {project.shortlistedContractorIds?.length ? ` · ${project.shortlistedContractorIds.length} shortlisted` : ""}
+                      </p>
+                    ) : null}
                     {project.notes ? <p className="mt-1 text-xs text-muted-foreground">{project.notes}</p> : null}
                     <div className="mt-2 flex gap-2">
                       <Button type="button" size="sm" variant="outline" onClick={() => loadProject(project)}>

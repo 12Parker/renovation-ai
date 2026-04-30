@@ -11,6 +11,8 @@ export type SavedProject = {
   roomType: string;
   style: string;
   goals: string[];
+  postalCode?: string;
+  shortlistedContractorIds?: string[];
   imageDataUrl?: string;
   generatedImageDataUrl?: string;
   analysis: RoomAnalysis;

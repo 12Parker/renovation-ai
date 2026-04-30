@@ -10,7 +10,7 @@
 ### Proposed experience
 1. User completes room analysis and sees recommended tasks.
 2. App auto-detects required trades from `contractorTasks` and cost categories (e.g., carpenter, plumber, electrician, interior designer).
-3. User enters zip code (or allows location).
+3. User enters postal code (or allows location).
 4. For each trade, app shows 2-3 options with:
    - Name + rating + review count
    - Distance/service area
@@ -26,7 +26,7 @@
 - `EstimateAssignment`: costLineItemCategory -> contractorId(s) -> status.
 
 ### Matching logic (MVP)
-- Input signals: room type, selected goals, `contractorTasks`, budget tier, zip code.
+- Input signals: room type, selected goals, `contractorTasks`, budget tier, postal code.
 - Rule-based scoring first:
   - +trade match
   - +service area overlap
@@ -95,7 +95,7 @@
 - Abuse/fraud guardrails for partner listings.
 
 ## Recommended build order
-1. Contractor matching MVP (mock data, zip + trade + 2-3 matches).
+1. Contractor matching MVP (mock data, postal code + trade + 2-3 matches).
 2. Scope packet export.
 3. Quote comparison upload.
 4. Permit/code checklist.

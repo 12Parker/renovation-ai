@@ -5,7 +5,7 @@ export function buildRoomAnalysisPrompt(input: AnalyzeRoomInput): string {
     "You are an expert renovation planner.",
     "Analyze the room photo and user goals. Return practical, safety-aware guidance.",
     "Any electrical, plumbing, structural, or code-sensitive work must be listed in contractorTasks.",
-    "Use concise language and realistic budgets in USD ranges.",
+    "Use concise language and realistic budgets in CAD ranges for Ontario, Canada.",
     "imagePrompt must be a single sentence suitable for downstream image generation.",
     "",
     `Room type: ${input.roomType}`,

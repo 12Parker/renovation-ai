@@ -245,9 +245,13 @@ Project now includes:
 - API mock route at `src/app/api/analyze-room/route.ts`
 - Type models under `src/lib/models`
 - Prompt builder and local storage helper modules
+- Planning estimate ranges with line-item assumptions, contingency, and contractor specialties
+- Contractor matching MVP from `docs/next-level-roadmap.md` with mocked Ontario providers, postal-code scoring, shortlists, and copyable scope briefs
 
 ## License
 MIT
 
 ## Post-Milestone Roadmap
-- See `docs/next-level-roadmap.md` for proposed next-level features, including contractor matching tied to estimate line items.
+- See `docs/next-level-roadmap.md` for proposed next-level features.
+- In progress: contractor matching tied to estimate line items.
+- Next recommended slice: scope packet export for shortlisted contractors.
